@@ -18,7 +18,7 @@ router.get("/", async function (req, res, next) {
   const results = await db.query(
     `SELECT id, comp_code
          FROM invoices
-         ORDER BY comp_code`);
+         ORDER BY id`);
   const invoices = results.rows;
   return res.json({ invoices });
 });
@@ -40,7 +40,8 @@ router.get("/:id", async function (req, res, next) {
          FROM invoices
          WHERE id = $1`, [id]);
   const invoice = iResults.rows[0];
-  if (!invoice) throw new NotFoundError(`Invoice does not exist : ${req.params.id} .`);
+
+  if (!invoice) throw new NotFoundError(`Invoice does not exist : ${req.params.id}.`);
 
   const cResults = await db.query(
     `SELECT code, name, description
@@ -48,9 +49,10 @@ router.get("/:id", async function (req, res, next) {
          WHERE code = $1`, [invoice.comp_code]);
   const company = cResults.rows[0];
   invoice.company = company;
+  const { comp_code, ...newInvoice } = invoice;
 
-  // let newInvoice = invoice.filter(obj => obj.key !== obj.comp_code);
-  return res.json({ invoice });
+  //TODO: let newInvoice = invoice.filter(obj => obj.key !== obj.comp_code);
+  return res.json({ newInvoice });
 });
 
 
@@ -67,6 +69,15 @@ router.post("/", async function (req, res, next) {
   if (!req.body) throw new BadRequestError('Missing invoice information.');
 
   const { comp_code, amt } = req.body;
+
+  const comp_code_results = await db.query(
+    `SELECT code
+         FROM companies
+         WHERE code = $1`,
+         [comp_code]);
+  const comp = comp_code_results.rows[0];
+  if (!comp) throw new NotFoundError('Invalid company.');
+
   const result = await db.query(
     `INSERT INTO invoices (comp_code, amt)
            VALUES ($1, $2)
@@ -74,10 +85,35 @@ router.post("/", async function (req, res, next) {
            add_date, paid_date`,
     [comp_code, amt],
   );
+
   const invoice = result.rows[0];
+
   return res.status(201).json({ invoice });
 });
 
+
+/** Update invoice, returning {invoice: {id, comp_code, amt, paid, add_date, paid_date}};
+ * Accepts JSON body: {amt}
+*/
+
+router.put("/:id", async function (req, res, next) {
+  if (req.body === undefined) throw new BadRequestError();
+
+  const { amt } = req.body;
+
+  const result = await db.query(
+    `UPDATE invoices
+           SET amt=$1
+           WHERE id = $2
+           RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+    [amt, req.params.id],
+  );
+  const invoice = result.rows[0];
+
+  if (!invoice) throw new NotFoundError(`Invoice does not exist : ${req.params.id}.`);
+
+  return res.json({ invoice });
+});
 
 
 module.exports = router;
