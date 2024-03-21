@@ -14,7 +14,8 @@ const router = express.Router();
 router.get("/", async function (req, res, next) {
   const results = await db.query(
     `SELECT code, name
-         FROM companies`);
+         FROM companies
+         ORDER BY name`);
   const companies = results.rows;
   return res.json({ companies });
 });
@@ -34,19 +35,18 @@ router.get("/:code", async function (req, res, next) {
          FROM companies
          WHERE code = $1`, [code]);
 
-  const company = results.rows;
 
-  if (company.length === 0) {
-    throw new NotFoundError("Company code does not exist.");
-  }
+  const company = results.rows[0];
+
+  if (!company) throw new NotFoundError(`Company does not exist : ${req.params.code} .`);
   return res.json({ company });
 });
 
 
 
 
-/** Create new company, returning {company: {code, name, description}};
- * Accepts json body: {code, name, description}
+/** Create new company, returning JSON: {company: {code, name, description}};
+ * Accepts JSON body: {code, name, description}
 */
 
 router.post("/", async function (req, res, next) {
@@ -66,7 +66,7 @@ router.post("/", async function (req, res, next) {
 
 
 /** Update company, returning {company: {code, name, description}};
- * Accepts json body: {name, description}
+ * Accepts JSON body: {name, description}
 */
 
 router.put("/:code", async function (req, res, next) {
@@ -83,33 +83,24 @@ router.put("/:code", async function (req, res, next) {
   );
   const company = result.rows[0];
 
-  if (!company) {
-    throw new NotFoundError("Company does not exist.");
-  }
+  if (!company) throw new NotFoundError(`Company does not exist : ${req.params.code} .`);
+
   return res.json({ company });
 });
 
 
-/** Delete company, returning {status: "deleted"};
- * Takes in company code as URL parameter
+/** Delete company, returning JSON: {status: "deleted"};
+ * Takes in company code as URL parameter.
  */
-
 router.delete("/:code", async function (req, res, next) {
-  const results = await db.query(
-    `SELECT code, name, description
-          FROM companies
-          WHERE code = $1`, [request.params.code]);
-
-  const company = results.rows;
-  if (company.length === 0) {
-    throw new NotFoundError("Company code does not exist.");
-  }
-
   const result = await db.query(
-    "DELETE FROM companies WHERE code = $1",
+    `DELETE FROM companies WHERE code = $1
+    RETURNING code`,
     [req.params.code],
   );
+  const results = result.rows[0];
 
+  if (!results) throw new NotFoundError(`Company does not exist : ${req.params.code} .`);
   return res.json({ status: "deleted" });
 });
 
