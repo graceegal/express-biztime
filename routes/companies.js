@@ -25,20 +25,25 @@ router.get("/", async function (req, res, next) {
 
 /**
  * GET request to /companies -- for companies code
- * return JSON: {company: {code, name, description}}
+ * return JSON: {company: {code, name, description, invoices: [id, ...]}}
  */
 router.get("/:code", async function (req, res, next) {
   const code = req.params.code;
 
-  const results = await db.query(
+  const cResults = await db.query(
     `SELECT code, name, description
          FROM companies
          WHERE code = $1`, [code]);
+  const company = cResults.rows[0];
 
+  if (!company) throw new NotFoundError(`Company does not exist : ${req.params.code}.`);
 
-  const company = results.rows[0];
+  const iResults = await db.query(
+    `SELECT id
+      FROM invoices
+      WHERE comp_code = $1`, [code]);
+  company.invoices = iResults.rows.map(i => i.id);
 
-  if (!company) throw new NotFoundError(`Company does not exist : ${req.params.code} .`);
   return res.json({ company });
 });
 

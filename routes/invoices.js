@@ -36,23 +36,20 @@ router.get("/:id", async function (req, res, next) {
   const id = req.params.id;
 
   const iResults = await db.query(
-    `SELECT id, amt, paid, add_date, paid_date, comp_code
-         FROM invoices
-         WHERE id = $1`, [id]);
-  const invoice = iResults.rows[0];
+    `SELECT id, amt, paid, add_date, paid_date, companies.code,
+    companies.name, companies.description
+         FROM invoices JOIN companies ON invoices.comp_code = companies.code
+         WHERE id = $1`
+    , [id]);
+  const firstInvoice = iResults.rows[0];
+  console.log(firstInvoice);
 
-  if (!invoice) throw new NotFoundError(`Invoice does not exist : ${req.params.id}.`);
+  if (!firstInvoice) throw new NotFoundError(`Invoice does not exist : ${req.params.id}.`);
 
-  const cResults = await db.query(
-    `SELECT code, name, description
-         FROM companies
-         WHERE code = $1`, [invoice.comp_code]);
-  const company = cResults.rows[0];
-  invoice.company = company;
-  const { comp_code, ...newInvoice } = invoice;
+  const { code, name, description, ...invoice } = firstInvoice;
 
-  //TODO: let newInvoice = invoice.filter(obj => obj.key !== obj.comp_code);
-  return res.json({ newInvoice });
+  invoice.company = { code, name, description };
+  return res.json({ invoice });
 });
 
 
@@ -74,9 +71,10 @@ router.post("/", async function (req, res, next) {
     `SELECT code
          FROM companies
          WHERE code = $1`,
-         [comp_code]);
+    [comp_code]);
   const comp = comp_code_results.rows[0];
   if (!comp) throw new NotFoundError('Invalid company.');
+
 
   const result = await db.query(
     `INSERT INTO invoices (comp_code, amt)
@@ -114,6 +112,28 @@ router.put("/:id", async function (req, res, next) {
 
   return res.json({ invoice });
 });
+
+
+
+
+/** Delete invoice, returning JSON: {status: "deleted"};
+ * Takes in invoice id as URL parameter.
+ */
+router.delete("/:id", async function (req, res, next) {
+  const result = await db.query(
+    `DELETE FROM invoices WHERE id = $1
+    RETURNING id`,
+    [req.params.id],
+  );
+  const results = result.rows[0];
+
+  if (!results) throw new NotFoundError(`Invoice does not exist : ${req.params.id}.`);
+  return res.json({ status: "deleted" });
+});
+
+
+
+
 
 
 module.exports = router;
