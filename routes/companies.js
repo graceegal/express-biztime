@@ -2,6 +2,7 @@
 
 const express = require("express");
 const db = require('../db');
+const { slugify } = require('slugify');
 
 const { BadRequestError, NotFoundError } = require("../expressError");
 
@@ -19,8 +20,6 @@ router.get("/", async function (req, res, next) {
   const companies = results.rows;
   return res.json({ companies });
 });
-
-
 
 
 /**
@@ -53,16 +52,16 @@ router.get("/:code", async function (req, res, next) {
 /** Create new company, returning JSON: {company: {code, name, description}};
  * Accepts JSON body: {code, name, description}
 */
-
 router.post("/", async function (req, res, next) {
   if (!req.body) throw new BadRequestError('Missing company information.');
 
   const { code, name, description } = req.body;
+  const slug_code = slugify(code);
   const result = await db.query(
     `INSERT INTO companies (code, name, description)
            VALUES ($1, $2, $3)
            RETURNING code, name, description`,
-    [code, name, description],
+    [slug_code, name, description],
   );
   const company = result.rows[0];
   return res.status(201).json({ company });
